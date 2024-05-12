@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>index</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        #car_view {
+            max-width: 100vw;
+            height: auto;
+        }
+
+
+        .control {
+            width: 100%;
+            height: auto;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+        }
+
+
+        .keyboard {
+            width: 200px;
+        }
+
+        .keyboard div {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+        }
+
+        .keyboard button {
+            width: 100%;
+            height: 100px;
+
+        }
+
+
+        .up_down_view {
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: antiquewhite;
+            margin: 10px auto;
+        }
+
+        .up_down_view button {
+            width: 100px;
+            height: 39px;
+        }
+
+
+        .car_light {
+            width: 200px;
+            background-color: darkgray;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 0;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="local">
+        <p></p>
+    </div>
+
+    <!--小车声音-->
+    <audio id="player" controls autoplay></audio>
+
+    <!--小车画面-->
+    <img src="" id="car_view" />
+
+    <div class="control">
+        <div class="keyboard">
+            <button name="car_up">前进</button>
+            <div>
+                <button name="car_left">左转</button>
+                <button name="car_right">右转</button>
+            </div>
+            <button name="car_down">后退</button>
+        </div>
+        <div>
+            <div class="up_down_view">
+                <p>天空</p>
+                <button onclick="sendCodeToEsp32('to_180')">180°</button>
+                <button onclick="sendCodeToEsp32('to_135')">135°</button>
+                <button onclick="sendCodeToEsp32('to_90')">90° 默认</button>
+                <button onclick="sendCodeToEsp32('to_45')">45°</button>
+                <button onclick="sendCodeToEsp32('to_0')">0°</button>
+                <p>地面</p>
+            </div>
+
+        </div>
+
+    </div>
+    <div class="car_light">
+        <button onclick="sendCodeToEsp32('turn_on_light')">开灯</button>
+        <button onclick="sendCodeToEsp32('turn_off_light')">关灯</button>
+    </div>
+
+    <hr>
+
+    <input type="text" id="code_input" placeholder="请输入命令代码">
+    <button onclick="runEsp32Code()">运行命令</button>
+
+    <script src="./pcm.js"></script>
+    <script>
+        //初始化，本地，你自己
+        var self = 'admin';//你的编号，如，270
+        document.querySelector('#local p').innerHTML = `本地（${self}）`;
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        let keyboard = document.getElementsByClassName('keyboard')[0];
+        keyboard.onmousedown = keyboard_touchstart;
+        keyboard.onmouseup = keyboard_touchend;
+        keyboard.ontouchstart = keyboard_touchstart;
+        keyboard.ontouchend = keyboard_touchend;
+
+        //按下手指或鼠标
+        function keyboard_touchstart(e) {
+            let target = e.target || e.srcElement;
+            if (target.nodeName.toLowerCase() == 'button') {
+                let keyname = target.getAttribute('name');
+                if (keyname == 'car_up') {
+                    sendCodeToEsp32('car_up_open')
+                    sendCodeToEsp32('car_up_open')
+                } else if (keyname == 'car_down') {
+                    sendCodeToEsp32('car_down_open')
+                    sendCodeToEsp32('car_down_open')
+                } else if (keyname == 'car_left') {
+                    sendCodeToEsp32('car_left_open')
+                    sendCodeToEsp32('car_left_open')
+                } else if (keyname == 'car_right') {
+                    sendCodeToEsp32('car_right_open')
+                    sendCodeToEsp32('car_right_open')
+                }
+            }
+            e.stopPropagation()
+            e.preventDefault()
+        }
+
+        //松开手指或鼠标
+        function keyboard_touchend(e) {
+            let target = e.target || e.srcElement;
+            if (target.nodeName.toLowerCase() == 'button') {
+                let keyname = target.getAttribute('name');
+                if (keyname == 'car_up') {
+                    sendCodeToEsp32('car_up_close')
+                    sendCodeToEsp32('car_up_close')
+                } else if (keyname == 'car_down') {
+                    sendCodeToEsp32('car_down_close')
+                    sendCodeToEsp32('car_down_close')
+                } else if (keyname == 'car_left') {
+                    sendCodeToEsp32('car_left_close')
+                    sendCodeToEsp32('car_left_close')
+                } else if (keyname == 'car_right') {
+                    sendCodeToEsp32('car_right_close')
+                    sendCodeToEsp32('car_right_close')
+                }
+            }
+            e.stopPropagation()
+            e.preventDefault()
+        }
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        //创建ws服务
+        var ws = new WebSocket(`ws://${location.hostname}:3000?user=${self}`);
+
+        ws.onopen = function () {
+            console.log('websocket连接成功！');
+        }
+        ws.onclose = function () {
+            console.log('websocket连接关闭！');
+        }
+        ws.onerror = function (e) {
+            console.log('websocket连接发生错误！');
+        }
+        ws.onmessage = function (res) {
+            // console.log('接收到服务端发来的消息！');
+
+            let { data, from, to } = JSON.parse(res.data);
+
+            if (typeof data.type != 'undefined' && data.type == 'video') {
+                drawCarView(from, data)
+            } else if (typeof data.type != 'undefined' && data.type == 'audio') {
+                playCarAudio(from, data)
+            }
+        }
+
+        // ws.close();  //关闭ws连接
+
+        // ws.send('string');   //给服务端发消息
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        //渲染小车视频画面
+        let carView = document.getElementById('car_view');
+        function drawCarView(from, res) {
+            var { type, data, width, height } = res;
+            carView.setAttribute('src', data);
+        }
+
+        //实时播放小车声音
+        let player = document.getElementById('player');
+        function playCarAudio(from, res) {
+            var { type, data } = res;
+            let dataBody = data.split(',')[1]; //提取base64数据本体
+            const blobUrl = pcmToWav(dataBody, 8000, 2, 16);
+            player.src = blobUrl;
+        }
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        document.getElementById("code_input").addEventListener("keydown", function (event) {
+            if (event.key == "Enter") {
+                runEsp32Code()
+            }
+        })
+
+        function runEsp32Code() {
+            let code = document.getElementById('code_input').value || ''
+            if (code.length != 0) {
+                sendCodeToEsp32(code)
+            }
+        }
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        function sendCodeToEsp32(code) {
+            console.log(code)
+            ws.send(JSON.stringify({
+                data: {
+                    code: code
+                },
+                from: self,
+                to: 'esp32'
+            }));
+        }
+    </script>
+
+</body>
+
+</html>
