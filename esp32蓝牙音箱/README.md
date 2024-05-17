@@ -2,6 +2,10 @@
 
 esp32 + arduino
 
+# 项目描述
+
+蓝牙 A2DP
+
 # 实现步骤
 
 1、arduino编辑器，左上角，点击“文件”，然后点击“新建项目”
@@ -63,6 +67,18 @@ git clone https://github.com/pschatzmann/ESP32-A2DP.git
 
 // ......
 ```
+
+# 项目硬件
+
+1、esp32（esp-wroom-32）
+
+2、max98357
+
+3、喇叭（4Ω-8Ω）
+
+4、杜邦线（母对母、公对公）
+
+5、电源（5V 2A）
 
 # 参考链接
 
