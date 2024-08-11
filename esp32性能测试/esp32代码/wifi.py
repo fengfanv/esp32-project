@@ -7,7 +7,7 @@ def do_connect():
     wlan.active(True)
     if not wlan.isconnected():
         print('connecting to network...')
-        wlan.connect('Xiaomi_1042', '13483650681')
+        wlan.connect('Xiaomi_1042', 'xxx')
     
         while not wlan.isconnected():
             print('正在连接wifi...')
