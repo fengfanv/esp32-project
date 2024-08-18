@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>websocketVideo</title>
+</head>
+
+<body>
+    <div id="local">
+        <p>本地</p>
+        <video autoplay controls></video>
+    </div>
+
+    <hr>
+
+    <div id="remote">
+        <input type="text" placeholder="远端用户">
+        <button onclick="startPushStream()">发送本地媒体流到远端用户</button>
+        <button onclick="endPushStream()">结束推流</button>
+    </div>
+
+    <div id="showZhenshu"></div>
+    <div id="showDaikuan"></div>
+    <div id="showYanchi"></div>
+
+    <script src="./zhenshu.js"></script>
+    <script src="./daikuan.js"></script>
+    <script src="./yanchi.js"></script>
+    <script>
+        var zhenshu = new Zhenshu(document.getElementById('showZhenshu'))
+        var daikuan = new Daikuan(document.getElementById('showDaikuan'))
+        var yanchi = new Yanchi(document.getElementById('showYanchi'))
+        yanchi.calibrate(`http://${location.hostname}:80/api/getTime?current=${Date.now()}`) //校准时间，统一时间，防止检测的延迟数据不正常
+
+
+
+        //初始化，本地，你自己
+        var self = Math.random().toString().split('.')[1].slice(3, 8);  //你的编号，如，27011
+        document.querySelector('#local p').innerHTML = `本地（${self}）`;
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        var remoteUser = '';
+        document.querySelector('#remote input').addEventListener('input', function (e) {
+            remoteUser = e.target.value;
+        });
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        var localVideo = document.querySelector('#local video');
+        var mediaStream = null;
+        try {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                .then(function (stream) {
+                    mediaStream = stream;
+                    localVideo.srcObject = mediaStream;
+                })
+        } catch (err) {
+            console.log(err)
+        }
+        var canvas = document.createElement('canvas');
+        var ctx = canvas.getContext('2d');
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        //是否正在推流
+        var isPush = false;
+
+        //开始推流
+        function startPushStream() {
+            canvas.width = localVideo.videoWidth;
+            canvas.height = localVideo.videoHeight;
+            isPush = true;
+
+            function sendFrame() {
+                ctx.drawImage(localVideo, 0, 0, canvas.width, canvas.height);
+
+
+                var base64Data = canvas.toDataURL('image/webp', 0.9); //图片格式为image/jpeg或image/webp时，可以设置图片质量(从0到1)
+                //0-4表示去哪里
+                //5-9表示从哪来
+                //10-14表示消息类型（video、yanch、code_、等）
+                //15往后是数据本体
+                var msg = `${remoteUser}${self}${'video'}${base64Data}`;
+                ws.send(msg)
+
+                //延迟
+                var yanchiMsg = `${remoteUser}${self}${'yanch'}${yanchi.start()}`;
+                ws.send(yanchiMsg)
+
+                if (isPush) {
+                    requestAnimationFrame(sendFrame);
+                } else {
+                    console.log('推流结束');
+                }
+            }
+            sendFrame();
+        }
+
+        //结束推流
+        function endPushStream() {
+            isPush = false;
+        }
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        //创建ws服务
+        var ws = new WebSocket(`ws://${location.hostname}:3000/?user=${self}`)
+
+        ws.onopen = function () {
+            console.log("websocket连接成功！")
+        }
+        ws.onclose = function () {
+            console.log("websocket连接关闭！")
+        }
+        ws.onerror = function (e) {
+            console.log("websocket连接发生错误！")
+        }
+        ws.onmessage = function (res) {
+            // console.log("接收到服务端发来的消息！")
+
+            daikuan.update(new Blob([res.data]).size)
+
+            //0-4表示去哪里
+            //5-9表示从哪来
+            //10-14表示消息类型（video、yanch、code_、等）
+            //15往后是数据本体
+            var to = res.data.slice(0, 5)
+            var from = res.data.slice(5, 10)
+            var type = res.data.slice(10, 15)
+            var body = res.data.slice(15)
+
+            if (type == 'video') {
+                drawVideo(from, body)
+            } else if (type == 'yanch') {
+                yanchi.end(body)
+            }
+
+        }
+
+        // ws.close()   //关闭ws连接
+
+        // ws.send('string')    //给服务端发消息
+
+        //监听浏览器关闭
+        window.addEventListener('beforeunload', () => {
+            ws && ws.close();
+        })
+
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+        //------------------------------------------------------------------------------
+
+        //渲染视频画面
+        var drawVideoData = {
+            // 'user_xxxx': {
+            //     canvas: xxx,
+            //     ctx: xxx,
+            //     img: xxx
+            // }
+        }
+        function drawVideo(from, base64) {
+            var user = `user_${from}`;
+            if (typeof drawVideoData[user] == 'undefined') {
+                drawVideoData[user] = {};
+                drawVideoData[user].img = document.createElement('img');
+                drawVideoData[user].img.setAttribute('id', `${user}`);
+                drawVideoData[user].img.setAttribute('style', `width:100%;height:auto;`);
+                document.body.appendChild(drawVideoData[user].img);
+                return false;
+            }
+            drawVideoData[user].img.setAttribute('src', base64);
+
+            zhenshu.update();//计算帧数
+        }
+    </script>
+
+</body>
+
+</html>
