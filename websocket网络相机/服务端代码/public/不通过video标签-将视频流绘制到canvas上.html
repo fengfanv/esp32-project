@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <canvas id="myCanvas"></canvas>
+    <script>
+        navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+            .then((stream) => {
+                const videoTrack = stream.getVideoTracks()[0]; // 获取视频轨道
+                const imageCapture = new ImageCapture(videoTrack); // 使用 ImageCapture 提取帧
+
+                // 获取 canvas 元素和 2D 上下文
+                const canvas = document.getElementById('myCanvas');
+                const ctx = canvas.getContext('2d');
+
+                // 设置 canvas 尺寸，可以根据屏幕流的尺寸调整
+                canvas.width = 1000;
+                canvas.height = 500;
+
+                // 捕获并绘制每一帧
+                function captureFrame() {
+                    imageCapture.grabFrame()
+                        .then((imageBitmap) => {
+                            // 将获取的 ImageBitmap 绘制到 canvas 上
+                            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                            requestAnimationFrame(captureFrame); // 循环请求下一帧
+                        })
+                        .catch((err) => {
+                            console.error('抓取帧失败:', err);
+                        });
+                }
+
+                // 启动帧捕获
+                captureFrame();
+            })
+            .catch((err) => {
+                console.error('获取屏幕流失败:', err);
+            });
+    </script>
+</body>
+
+</html>
